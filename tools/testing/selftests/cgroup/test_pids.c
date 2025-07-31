@@ -129,7 +129,7 @@ static int test_pids_events(const char *root)
     }
 
     long child_max = cg_read_key_long(cg_child, "pids.events", "max ");
-	long parent_max = cg_read_key_long(cg_parent, "pids.events", "max ");
+	    long parent_max = cg_read_key_long(cg_parent, "pids.events", "max ");
 
 	printf("DEBUG: child pids.events max = %ld\n", child_max);
 	printf("DEBUG: parent pids.events max = %ld\n", parent_max);
@@ -138,7 +138,6 @@ static int test_pids_events(const char *root)
         goto cleanup;
     }
 
-    long parent_max = cg_read_key_long(cg_parent, "pids.events", "max ");
     if (parent_max != 1) {
         printf("Unexpected parent pids.events 'max' count: %ld (expected 1)\n", parent_max);
         goto cleanup;
