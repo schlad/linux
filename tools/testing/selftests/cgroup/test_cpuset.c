@@ -27,13 +27,13 @@ static int do_migration_fn(const char *cgroup, void *arg)
 	if (cg_enter(cgroup, object_pid)) {
 		if (errno == EPERM) {
 			ksft_print_msg("Migration denied with EPERM — likely due to cpuset delegation policy\n");
+			return KSFT_SKIP;
 		}
-		return KSFT_SKIP;
+		return EXIT_FAILURE;
 	}
 
 	// XXX checking /proc/$pid/cgroup would be quicker than wait
-	if (cg_enter(cgroup, object_pid) ||
-	    cg_wait_for_proc_count(cgroup, 1))
+	if (cg_wait_for_proc_count(cgroup, 1))
 		return EXIT_FAILURE;
 
 	return EXIT_SUCCESS;
@@ -135,7 +135,15 @@ static int test_cpuset_perms_object(const char *root, bool allow)
 	 * Child process's cgroup is irrelevant but we place it into child_dst
 	 * as hacky way to pass information about migration target to the child.
 	 */
-	if (allow ^ (cg_run(child_dst, do_migration_fn, (void *)(size_t)object_pid) == EXIT_SUCCESS))
+	int mig_ret = cg_run(child_dst, do_migration_fn, (void *)(size_t)object_pid);
+
+	if (mig_ret == KSFT_SKIP) {
+		ksft_test_result_skip("cpuset migration not allowed due to kernel policy\n");
+		ret = KSFT_SKIP;
+		goto cleanup;
+	}
+
+	if (allow ^ (mig_ret == EXIT_SUCCESS))
 		goto cleanup;
 
 	ret = KSFT_PASS;
