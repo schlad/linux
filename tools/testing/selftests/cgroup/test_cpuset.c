@@ -135,16 +135,25 @@ static int test_cpuset_perms_object(const char *root, bool allow)
 	 * Child process's cgroup is irrelevant but we place it into child_dst
 	 * as hacky way to pass information about migration target to the child.
 	 */
-	int mig_ret = cg_run(child_dst, do_migration_fn, (void *)(size_t)object_pid);
+int status = cg_run(child_dst, do_migration_fn, (void *)(size_t)object_pid);
 
-	if (mig_ret == KSFT_SKIP) {
+if (WIFEXITED(status)) {
+	int exit_code = WEXITSTATUS(status);
+
+	if (exit_code == KSFT_SKIP) {
 		ksft_test_result_skip("cpuset migration not allowed due to kernel policy\n");
 		ret = KSFT_SKIP;
 		goto cleanup;
 	}
 
-	if (allow ^ (mig_ret == EXIT_SUCCESS))
+	if (allow ^ (exit_code == EXIT_SUCCESS))
 		goto cleanup;
+
+	ret = KSFT_PASS;
+} else {
+	ksft_test_result_fail("Migration subprocess crashed or was killed\n");
+}
+
 
 	ret = KSFT_PASS;
 
