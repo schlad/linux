@@ -20,9 +20,16 @@ static int do_migration_fn(const char *cgroup, void *arg)
 		return EXIT_FAILURE;
 
 	// XXX checking /proc/$pid/cgroup would be quicker than wait
-	if (cg_enter(cgroup, object_pid) ||
-	    cg_wait_for_proc_count(cgroup, 1))
-		return EXIT_FAILURE;
+	if (cg_enter(cgroup, object_pid)) {
+		if (errno == EPERM) {
+			printf("Migration denied with EPERM\n");
+			return KSFT_SKIP;
+		}
+	return EXIT_FAILURE;
+	}
+
+	if (cg_wait_for_proc_count(cgroup, 1))
+	return EXIT_FAILURE;
 
 	return EXIT_SUCCESS;
 }
