@@ -649,6 +649,7 @@ static int test_cpucg_max(const char *root)
 	long quota_usec = 1000;
 	long default_period_usec = 100000; /* cpu.max's default period */
 	long duration_seconds = 1;
+	long allowed_tolerance = cgconf_get_env("CPU_MAX", 10);
 
 	long duration_usec = duration_seconds * USEC_PER_SEC;
 	long usage_usec, n_periods, remainder_usec, expected_usage_usec;
@@ -691,7 +692,7 @@ static int test_cpucg_max(const char *root)
 	expected_usage_usec
 		= n_periods * quota_usec + MIN(remainder_usec, quota_usec);
 
-	if (!values_close(usage_usec, expected_usage_usec, 10))
+	if (!values_close(usage_usec, expected_usage_usec, allowed_tolerance))
 		goto cleanup;
 
 	ret = KSFT_PASS;
