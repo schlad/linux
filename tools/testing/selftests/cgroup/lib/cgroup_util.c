@@ -21,6 +21,29 @@
 
 bool cg_test_v1_named;
 
+long cgconf_get_env(const char *env_key, long default_value)
+{
+	if (!env_key || !*env_key)
+		return default_value;
+
+	const char *s = getenv(env_key);
+	if (!s || !*s)
+		return default_value;
+
+	errno = 0;
+	char *end = NULL;
+	long v = strtol(s, &end, 10);
+	if (errno || end == s)
+		return default_value;
+
+	while (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')
+		end++;
+	if (*end != '\0')
+		return default_value;
+
+	return v;
+}
+
 /* Returns read len on success, or -errno on failure. */
 ssize_t read_text(const char *path, char *buf, size_t max_len)
 {

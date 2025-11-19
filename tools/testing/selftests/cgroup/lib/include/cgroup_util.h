@@ -25,6 +25,12 @@ static inline int values_close(long a, long b, int err)
 	return labs(a - b) <= (a + b) / 100 * err;
 }
 
+/*
+* Read an integer value from environment variable `env_key`.
+* If unset or unparsable, return `default_value`.
+*/
+long cgconf_get_env(const char *env_key, long default_value);
+
 extern ssize_t read_text(const char *path, char *buf, size_t max_len);
 extern ssize_t write_text(const char *path, char *buf, ssize_t len);
 
