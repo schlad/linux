@@ -82,39 +82,67 @@ static int test_pids_events(const char *root)
 
 	cg_parent = cg_name(root, "pids_parent");
 	cg_child = cg_name(cg_parent, "pids_child");
-	if (!cg_parent || !cg_child)
-		goto cleanup;
+    if (!cg_parent || !cg_child) {
+        printf("Failed to allocate cgroup names\n");
+        goto cleanup;
+    }
 
-	if (cg_create(cg_parent))
-		goto cleanup;
-	if (cg_write(cg_parent, "cgroup.subtree_control", "+pids"))
-		goto cleanup;
-	if (cg_create(cg_child))
-		goto cleanup;
+    if (cg_create(cg_parent)) {
+        printf("Failed to create parent cgroup: %s\n", cg_parent);
+        goto cleanup;
+    }
+    if (cg_write(cg_parent, "cgroup.subtree_control", "+pids")) {
+        printf("Failed to enable +pids in parent\n");
+        goto cleanup;
+    }
+    if (cg_create(cg_child)) {
+        printf("Failed to create child cgroup: %s\n", cg_child);
+        goto cleanup;
+    }
 
-	if (cg_write(cg_parent, "pids.max", "2"))
-		goto cleanup;
+    if (cg_write(cg_parent, "pids.max", "2")) {
+        printf("Failed to set pids.max=2 in parent\n");
+        goto cleanup;
+    }
 
-	if (cg_read_strcmp(cg_child, "pids.max", "max\n"))
-		goto cleanup;
+    if (cg_read_strcmp(cg_child, "pids.max", "max\n")) {
+        printf("Child pids.max is not 'max'\n");
+        goto cleanup;
+    }
 
-	if (cg_enter_current(cg_child))
-		goto cleanup;
+    if (cg_enter_current(cg_child)) {
+        printf("Failed to enter child cgroup\n");
+        goto cleanup;
+    }
 
 	pid = cg_run_nowait(cg_child, run_pause, NULL);
-	if (pid < 0)
-		goto cleanup;
+    if (pid < 0) {
+        printf("Failed to start pause process in child\n");
+        goto cleanup;
+    }
 
-	if (cg_run_nowait(cg_child, run_success, NULL) != -1 || errno != EAGAIN)
-		goto cleanup;
+    if (cg_run_nowait(cg_child, run_success, NULL) != -1 || errno != EAGAIN) {
+        printf("Unexpectedly able to fork in child (expected EAGAIN)\n");
+        goto cleanup;
+    }
 
-	if (kill(pid, SIGINT))
-		goto cleanup;
+    if (kill(pid, SIGINT)) {
+        printf("Failed to kill pause process\n");
+        goto cleanup;
+    }
 
-	if (cg_read_key_long(cg_child, "pids.events", "max ") != 0)
-		goto cleanup;
-	if (cg_read_key_long(cg_parent, "pids.events", "max ") != 1)
-		goto cleanup;
+    long child_max = cg_read_key_long(cg_child, "pids.events", "max ");
+	printf("DEBUG: child pids.events max = %ld\n", child_max);
+    if (child_max != 0) {
+        printf("Unexpected child pids.events 'max' count: %ld (expected 0)\n", child_max);
+        goto cleanup;
+    }
+
+    long parent_max = cg_read_key_long(cg_parent, "pids.events", "max ");
+    if (parent_max != 1) {
+        printf("Unexpected parent pids.events 'max' count: %ld (expected 1)\n", parent_max);
+        goto cleanup;
+    }
 
 
 	ret = KSFT_PASS;
