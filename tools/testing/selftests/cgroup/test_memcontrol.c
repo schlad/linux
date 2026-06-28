@@ -11,6 +11,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/inotify.h>
+#include <sys/ioctl.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
@@ -1658,10 +1660,27 @@ cleanup:
 static int read_event(int inotify_fd, int expected_event, int expected_wd)
 {
 	struct inotify_event event;
+	struct pollfd pfd = { .fd = inotify_fd, .events = POLLIN };
+	int pending, poll_ret;
 	ssize_t len = 0;
 
 	fprintf(stderr, "DEBUG read_event: waiting for event mask=0x%x wd=%d on fd=%d\n",
 		expected_event, expected_wd, inotify_fd);
+
+	if (ioctl(inotify_fd, FIONREAD, &pending) == 0)
+		fprintf(stderr, "DEBUG read_event: bytes pending in inotify fd before poll: %d\n",
+			pending);
+
+	poll_ret = poll(&pfd, 1, 5000);
+	fprintf(stderr, "DEBUG read_event: poll returned %d revents=0x%x errno=%d\n",
+		poll_ret, pfd.revents, errno);
+
+	if (poll_ret == 0) {
+		fprintf(stderr, "DEBUG read_event: TIMEOUT - no event after 5s, giving up\n");
+		return -1;
+	}
+	if (poll_ret < 0)
+		return -1;
 
 	len = read(inotify_fd, &event, sizeof(event));
 	fprintf(stderr, "DEBUG read_event: read returned len=%zd errno=%d\n", len, errno);
@@ -1715,7 +1734,12 @@ static int test_memcg_inotify_delete_file(const char *root)
 		fprintf(stderr, "DEBUG delete_file: cg_destroy failed errno=%d\n", errno);
 		goto cleanup;
 	}
-	fprintf(stderr, "DEBUG delete_file: cg_destroy ok, waiting for IN_DELETE_SELF\n");
+	fprintf(stderr, "DEBUG delete_file: cg_destroy ok\n");
+	fprintf(stderr, "DEBUG delete_file: cgroup dir exists after destroy: %d (0=gone)\n",
+		access(memcg, F_OK));
+	fprintf(stderr, "DEBUG delete_file: memory.events exists after destroy: %d (0=exists)\n",
+		access(cg_control(memcg, "memory.events"), F_OK));
+	fprintf(stderr, "DEBUG delete_file: waiting for IN_DELETE_SELF\n");
 	free(memcg);
 	memcg = NULL;
 
@@ -1772,7 +1796,10 @@ static int test_memcg_inotify_delete_dir(const char *root)
 		fprintf(stderr, "DEBUG delete_dir: cg_destroy failed errno=%d\n", errno);
 		goto cleanup;
 	}
-	fprintf(stderr, "DEBUG delete_dir: cg_destroy ok, waiting for IN_DELETE_SELF\n");
+	fprintf(stderr, "DEBUG delete_dir: cg_destroy ok\n");
+	fprintf(stderr, "DEBUG delete_dir: cgroup dir exists after destroy: %d (0=gone)\n",
+		access(memcg, F_OK));
+	fprintf(stderr, "DEBUG delete_dir: waiting for IN_DELETE_SELF\n");
 	free(memcg);
 	memcg = NULL;
 
