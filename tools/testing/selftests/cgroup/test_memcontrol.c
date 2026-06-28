@@ -1746,31 +1746,43 @@ static int test_memcg_inotify_delete_dir(const char *root)
 	int fd, wd;
 
 	memcg = cg_name(root, "memcg_test_0");
+	fprintf(stderr, "DEBUG delete_dir: memcg path=%s\n", memcg ? memcg : "(null)");
 
 	if (!memcg)
 		goto cleanup;
 
-	if (cg_create(memcg))
+	if (cg_create(memcg)) {
+		fprintf(stderr, "DEBUG delete_dir: cg_create failed errno=%d\n", errno);
 		goto cleanup;
+	}
+	fprintf(stderr, "DEBUG delete_dir: cg_create ok\n");
 
 	fd = inotify_init1(0);
+	fprintf(stderr, "DEBUG delete_dir: inotify_init1 fd=%d errno=%d\n", fd, errno);
 	if (fd == -1)
 		goto cleanup;
 
 	wd = inotify_add_watch(fd, memcg, IN_DELETE_SELF);
+	fprintf(stderr, "DEBUG delete_dir: inotify_add_watch wd=%d errno=%d path=%s\n",
+		wd, errno, memcg);
 	if (wd == -1)
 		goto cleanup;
 
-	if (cg_destroy(memcg))
+	if (cg_destroy(memcg)) {
+		fprintf(stderr, "DEBUG delete_dir: cg_destroy failed errno=%d\n", errno);
 		goto cleanup;
+	}
+	fprintf(stderr, "DEBUG delete_dir: cg_destroy ok, waiting for IN_DELETE_SELF\n");
 	free(memcg);
 	memcg = NULL;
 
 	if (read_event(fd, IN_DELETE_SELF, wd))
 		goto cleanup;
+	fprintf(stderr, "DEBUG delete_dir: got IN_DELETE_SELF, waiting for IN_IGNORED\n");
 
 	if (read_event(fd, IN_IGNORED, wd))
 		goto cleanup;
+	fprintf(stderr, "DEBUG delete_dir: got IN_IGNORED, test passed\n");
 
 	ret = KSFT_PASS;
 
