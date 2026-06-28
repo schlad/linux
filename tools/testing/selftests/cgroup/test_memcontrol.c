@@ -1660,9 +1660,17 @@ static int read_event(int inotify_fd, int expected_event, int expected_wd)
 	struct inotify_event event;
 	ssize_t len = 0;
 
+	fprintf(stderr, "DEBUG read_event: waiting for event mask=0x%x wd=%d on fd=%d\n",
+		expected_event, expected_wd, inotify_fd);
+
 	len = read(inotify_fd, &event, sizeof(event));
+	fprintf(stderr, "DEBUG read_event: read returned len=%zd errno=%d\n", len, errno);
+
 	if (len < (ssize_t)sizeof(event))
 		return -1;
+
+	fprintf(stderr, "DEBUG read_event: got mask=0x%x wd=%d name_len=%u\n",
+		event.mask, event.wd, event.len);
 
 	if (event.mask != expected_event || event.wd != expected_wd) {
 		fprintf(stderr,
@@ -1681,31 +1689,43 @@ static int test_memcg_inotify_delete_file(const char *root)
 	int fd, wd;
 
 	memcg = cg_name(root, "memcg_test_0");
+	fprintf(stderr, "DEBUG delete_file: memcg path=%s\n", memcg ? memcg : "(null)");
 
 	if (!memcg)
 		goto cleanup;
 
-	if (cg_create(memcg))
+	if (cg_create(memcg)) {
+		fprintf(stderr, "DEBUG delete_file: cg_create failed errno=%d\n", errno);
 		goto cleanup;
+	}
+	fprintf(stderr, "DEBUG delete_file: cg_create ok\n");
 
 	fd = inotify_init1(0);
+	fprintf(stderr, "DEBUG delete_file: inotify_init1 fd=%d errno=%d\n", fd, errno);
 	if (fd == -1)
 		goto cleanup;
 
 	wd = inotify_add_watch(fd, cg_control(memcg, "memory.events"), IN_DELETE_SELF);
+	fprintf(stderr, "DEBUG delete_file: inotify_add_watch wd=%d errno=%d path=%s\n",
+		wd, errno, cg_control(memcg, "memory.events"));
 	if (wd == -1)
 		goto cleanup;
 
-	if (cg_destroy(memcg))
+	if (cg_destroy(memcg)) {
+		fprintf(stderr, "DEBUG delete_file: cg_destroy failed errno=%d\n", errno);
 		goto cleanup;
+	}
+	fprintf(stderr, "DEBUG delete_file: cg_destroy ok, waiting for IN_DELETE_SELF\n");
 	free(memcg);
 	memcg = NULL;
 
 	if (read_event(fd, IN_DELETE_SELF, wd))
 		goto cleanup;
+	fprintf(stderr, "DEBUG delete_file: got IN_DELETE_SELF, waiting for IN_IGNORED\n");
 
 	if (read_event(fd, IN_IGNORED, wd))
 		goto cleanup;
+	fprintf(stderr, "DEBUG delete_file: got IN_IGNORED, test passed\n");
 
 	ret = KSFT_PASS;
 
