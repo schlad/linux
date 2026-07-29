@@ -276,15 +276,26 @@ static int cmsg_check_dead(int fd, int expected_pid)
 		return 1;
 	}
 
+	/* Kernel predates c679d17d3f2d ("af_unix: enable handing out
+	 * pidfds for reaped tasks in SCM_PIDFD"): pidfd_prepare() doesn't
+	 * honor PIDFD_STALE yet and rejects the already-reaped task.
+	 */
+	if (*res.pidfd == -EINVAL || *res.pidfd == -ESRCH)
+		return -EOPNOTSUPP;
+
+	if (*res.pidfd < 0)
+		return *res.pidfd;
+
 	/*
 	 * pidfd from SCM_PIDFD should point to the client_pid.
 	 * Let's read exit information and check if it's what
 	 * we expect to see.
 	 */
 	if (ioctl(*res.pidfd, PIDFD_GET_INFO, &info)) {
+		err = -errno;
 		log_err("%s: ioctl(PIDFD_GET_INFO) failed", __func__);
 		close(*res.pidfd);
-		return 1;
+		return err;
 	}
 
 	if (!(info.mask & PIDFD_INFO_EXIT)) {
@@ -548,6 +559,11 @@ TEST_F(scm_pidfd, test)
 	ASSERT_EQ(0, err);
 
 	err = cmsg_check_dead(pfd, self->client_pid);
+	if (err == -EOPNOTSUPP) {
+		TH_LOG("kernel lacks stale SCM_PIDFD support, skipping check");
+		close(pfd);
+		return;
+	}
 	ASSERT_EQ(0, err);
 
 	close(pfd);
