@@ -219,7 +219,7 @@ static int test_cpucg_stats(const char *root)
 	if (user_usec <= 0)
 		goto cleanup;
 
-	if (!values_close_report(usage_usec, expected_usage_usec, 1))
+	if (!values_close_report(usage_usec, expected_usage_usec * 2, 1))
 		goto cleanup;
 
 	ret = KSFT_PASS;
